@@ -36,6 +36,6 @@ def test_poststack_coherence_overlay():
     at.sidebar.radio[0].set_value("Post-stack (volume)").run()
     at.sidebar.selectbox[0].set_value("Coherence (semblance)").run()
     assert not at.exception
-    # time-slice view with the fault overlay active
-    at.sidebar.radio[1].set_value("Time slice").run()
+    # time-slice view with the fault overlay active (radio[0]=Mode, [1]=Source, [2]=Slice)
+    at.sidebar.radio[2].set_value("Time slice").run()
     assert not at.exception
