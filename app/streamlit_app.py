@@ -15,6 +15,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from seisproc.attributes import ATTRIBUTES, compute
+from seisproc.coherence import coherence
 from seisproc.nmo import nmo_correct, stack, velocity_function
 from seisproc.processing import agc, bandpass, normalize
 from seisproc.segy import SegyData, read_segy
@@ -167,12 +168,18 @@ def _load_volume(vol: Volume):
     st.session_state.attr_cache = {}
 
 
+COHERENCE = "Coherence (semblance)"
+
+
 def _attr_volume(name: str) -> np.ndarray:
     cache = st.session_state.setdefault("attr_cache", {})
     if name not in cache:
         vol: Volume = st.session_state.volume
         with st.spinner(f"Computing {name} ..."):
-            cache[name] = compute(name, vol.data, vol.dt)
+            if name == COHERENCE:
+                cache[name] = coherence(vol.data, vol.dt)
+            else:
+                cache[name] = compute(name, vol.data, vol.dt)
     return cache[name]
 
 
@@ -215,7 +222,11 @@ def poststack_mode():
 
         st.header("View")
         view = st.radio("Slice", ["Inline", "Crossline", "Time slice"])
-        attr_name = st.selectbox("Attribute", list(ATTRIBUTES.keys()))
+        attr_name = st.selectbox("Attribute", list(ATTRIBUTES.keys()) + [COHERENCE])
+        overlay = False
+        if attr_name == COHERENCE:
+            overlay = st.checkbox("Overlay faults on amplitude", value=True)
+            fault_thresh = st.slider("Fault threshold (coherence <)", 0.05, 0.95, 0.5, 0.05)
 
     with st.expander("Volume metadata", expanded=False):
         st.json(vol.summary())
@@ -225,32 +236,53 @@ def poststack_mode():
 
     if view == "Inline":
         il = st.slider("Inline", int(vol.ilines[0]), int(vol.ilines[-1]), int(vol.ilines[len(vol.ilines) // 2]))
-        section = attr[int(np.where(vol.ilines == il)[0][0])]
+        sel = (int(np.where(vol.ilines == il)[0][0]), slice(None), slice(None))
         xlabel, xaxis = "Crossline", vol.xlines
     elif view == "Crossline":
         xl = st.slider("Crossline", int(vol.xlines[0]), int(vol.xlines[-1]), int(vol.xlines[len(vol.xlines) // 2]))
-        section = attr[:, int(np.where(vol.xlines == xl)[0][0])]
+        sel = (slice(None), int(np.where(vol.xlines == xl)[0][0]), slice(None))
         xlabel, xaxis = "Inline", vol.ilines
     else:
         t_slice = st.slider("Time (s)", 0.0, float(vol.t[-1]), float(vol.t[-1] / 2), float(vol.dt))
-        section = attr[:, :, int(round(t_slice / vol.dt))]
+        sel = (slice(None), slice(None), int(round(t_slice / vol.dt)))
+
+    section = attr[sel]
+
+    if view == "Time slice":
+        extent = [vol.ilines[0], vol.ilines[-1], vol.xlines[0], vol.xlines[-1]]
+        imshow_kw = dict(aspect="auto", origin="lower", extent=extent)
+        labels = ("Inline", "Crossline")
+    else:
+        extent = [xaxis[0], xaxis[-1], vol.t[-1], 0]
+        imshow_kw = dict(aspect="auto", extent=extent)
+        labels = (xlabel, "Time (s)")
 
     fig, ax = plt.subplots(figsize=(9, 6))
-    if view == "Time slice":
-        vmax = np.percentile(np.abs(section), 98) or 1.0
-        kw = dict(cmap="RdBu_r", vmin=-vmax, vmax=vmax) if signed else dict(cmap="viridis", vmin=0, vmax=vmax)
-        im = ax.imshow(section.T, aspect="auto", origin="lower",
-                       extent=[vol.ilines[0], vol.ilines[-1], vol.xlines[0], vol.xlines[-1]], **kw)
-        ax.set_xlabel("Inline")
-        ax.set_ylabel("Crossline")
+    if overlay:
+        # co-render: amplitude in grey, low-coherence (faults) in red
+        amp = vol.data[sel]
+        vmax = np.percentile(np.abs(amp), 98) or 1.0
+        im = ax.imshow(amp.T, cmap="gray_r", vmin=-vmax, vmax=vmax, **imshow_kw)
+        mask = (section < fault_thresh).T.astype(float)
+        rgba = np.zeros(mask.shape + (4,))
+        rgba[..., 0] = 0.85  # red
+        rgba[..., 3] = 0.7 * mask
+        ax.imshow(rgba, **imshow_kw)
+        label = "Amplitude + faults"
+    elif attr_name == COHERENCE:
+        im = ax.imshow(section.T, cmap="gray", vmin=np.percentile(section, 2), vmax=1.0, **imshow_kw)
+        label = attr_name
     else:
         vmax = np.percentile(np.abs(section), 98) or 1.0
-        kw = dict(cmap="gray_r", vmin=-vmax, vmax=vmax) if signed else dict(cmap="viridis", vmin=0, vmax=vmax)
-        im = ax.imshow(section.T, aspect="auto",
-                       extent=[xaxis[0], xaxis[-1], vol.t[-1], 0], **kw)
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel("Time (s)")
-    fig.colorbar(im, ax=ax, label=attr_name)
+        if signed:
+            cmap = "RdBu_r" if view == "Time slice" else "gray_r"
+            im = ax.imshow(section.T, cmap=cmap, vmin=-vmax, vmax=vmax, **imshow_kw)
+        else:
+            im = ax.imshow(section.T, cmap="viridis", vmin=0, vmax=vmax, **imshow_kw)
+        label = attr_name
+    ax.set_xlabel(labels[0])
+    ax.set_ylabel(labels[1])
+    fig.colorbar(im, ax=ax, label=label)
     st.pyplot(fig, clear_figure=True)
 
 

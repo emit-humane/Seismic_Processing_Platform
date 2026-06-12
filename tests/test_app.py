@@ -28,3 +28,14 @@ def test_poststack_attribute_switch():
     at.sidebar.radio[0].set_value("Post-stack (volume)").run()
     at.sidebar.selectbox[0].set_value("Envelope").run()
     assert not at.exception
+
+
+def test_poststack_coherence_overlay():
+    at = AppTest.from_file(str(APP), default_timeout=120)
+    at.run()
+    at.sidebar.radio[0].set_value("Post-stack (volume)").run()
+    at.sidebar.selectbox[0].set_value("Coherence (semblance)").run()
+    assert not at.exception
+    # time-slice view with the fault overlay active
+    at.sidebar.radio[1].set_value("Time slice").run()
+    assert not at.exception

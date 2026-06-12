@@ -139,3 +139,44 @@ def synthetic_volume(
         rng = np.random.default_rng(seed)
         data = data + noise * np.abs(data).max() * rng.standard_normal(data.shape)
     return data, t
+
+
+def synthetic_faulted_volume(
+    n_il: int = 40,
+    n_xl: int = 60,
+    dt: float = 0.004,
+    t_max: float = 1.0,
+    f_peak: float = 30.0,
+    throw: float = 0.024,
+    fault_xl: int | None = None,
+    noise: float = 0.0,
+    seed: int = 0,
+):
+    """Layered volume cut by a vertical fault: reflectors on the
+    downthrown side (xl >= fault_xl) are shifted deeper by `throw`
+    seconds. Ground truth for coherence — the fault must appear as a
+    low-coherence lineament along crossline fault_xl.
+
+    Returns (data, t, fault_xl).
+    """
+    if fault_xl is None:
+        fault_xl = n_xl // 2
+    n_samples = int(round(t_max / dt)) + 1
+    t = np.arange(n_samples) * dt
+
+    events = [(0.25, 0.8), (0.45, -0.6), (0.65, 0.7), (0.85, -0.5)]
+    spikes = np.zeros((n_il, n_xl, n_samples))
+    xl = np.arange(n_xl)
+    shift = np.where(xl >= fault_xl, throw, 0.0)
+
+    for t0, amp in events:
+        idx = np.clip(np.round((t0 + shift) / dt).astype(int), 0, n_samples - 1)
+        spikes[:, np.arange(n_xl), idx] += amp
+
+    _, w = ricker(f_peak, dt)
+    data = np.apply_along_axis(np.convolve, 2, spikes, w, mode="same")
+
+    if noise > 0.0:
+        rng = np.random.default_rng(seed)
+        data = data + noise * np.abs(data).max() * rng.standard_normal(data.shape)
+    return data, t, fault_xl
