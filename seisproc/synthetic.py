@@ -90,3 +90,52 @@ def cmp_gather(
         data = data + noise * np.abs(data).max() * rng.standard_normal(data.shape)
 
     return data, t, offsets
+
+
+def synthetic_volume(
+    n_il: int = 40,
+    n_xl: int = 50,
+    dt: float = 0.004,
+    t_max: float = 1.0,
+    f_peak: float = 30.0,
+    noise: float = 0.02,
+    seed: int = 0,
+):
+    """Small post-stack 3D volume: three reflectors draped over a dome,
+    with a bright-spot amplitude anomaly on the middle one. Ground truth
+    for attribute displays — the bright spot should light up in envelope
+    and RMS amplitude.
+
+    Returns (data, t) with data shaped (n_il, n_xl, n_samples).
+    """
+    n_samples = int(round(t_max / dt)) + 1
+    t = np.arange(n_samples) * dt
+    il = np.arange(n_il)[:, None]
+    xl = np.arange(n_xl)[None, :]
+
+    # structural high (time pull-up) in the volume centre
+    dome = 0.06 * np.exp(-(((il - n_il / 2) / (n_il / 3)) ** 2 + ((xl - n_xl / 2) / (n_xl / 3)) ** 2))
+
+    # bright spot: amplitude boost on a patch of the middle reflector
+    bright = 1.0 + 1.5 * np.exp(
+        -(((il - n_il * 0.5) / (n_il / 6)) ** 2 + ((xl - n_xl * 0.5) / (n_xl / 6)) ** 2
+    ))
+
+    events = [
+        (0.30, 0.8, np.ones((n_il, n_xl))),
+        (0.55, -0.6, bright),
+        (0.80, 0.7, np.ones((n_il, n_xl))),
+    ]
+
+    spikes = np.zeros((n_il, n_xl, n_samples))
+    for t0, amp, amap in events:
+        idx = np.clip(np.round((t0 - dome) / dt).astype(int), 0, n_samples - 1)
+        np.put_along_axis(spikes, idx[:, :, None], amp * amap[:, :, None], axis=2)
+
+    _, w = ricker(f_peak, dt)
+    data = np.apply_along_axis(np.convolve, 2, spikes, w, mode="same")
+
+    if noise > 0.0:
+        rng = np.random.default_rng(seed)
+        data = data + noise * np.abs(data).max() * rng.standard_normal(data.shape)
+    return data, t

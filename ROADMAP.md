@@ -64,13 +64,17 @@ stacks without errors.
 
 ## Milestone 2 — Post-stack attributes (F3 subset) ~2 weeks
 
-- [ ] Load F3 Netherlands subset (post-stack 3D, inline/crossline geometry)
-- [ ] Inline/crossline/time-slice navigation in viewer
-- [ ] Complex-trace attributes (Hilbert transform): envelope (reflection
+- [x] Load F3 Netherlands subset (post-stack 3D): `scripts/download_f3.py`
+      fetches the Zenodo 3755060 benchmark release; `volume.from_npy` and
+      geometry-aware `read_segy_volume` both supported
+- [x] Inline/crossline/time-slice navigation in viewer (post-stack mode)
+- [x] Complex-trace attributes (Hilbert transform): envelope (reflection
       strength), instantaneous phase, instantaneous frequency
-- [ ] Windowed RMS amplitude
+- [x] Windowed RMS amplitude
+- [x] Synthetic 3D volume (dome + bright spot) as attribute ground truth
 - [ ] Attribute co-rendering (attribute overlay on amplitude)
-- [ ] Export attribute volumes back to SEG-Y
+- [ ] Export attribute volumes back to SEG-Y from the app
+      (`write_segy_volume` exists in the library)
 
 **Exit criteria:** F3 bright spots visible in envelope; instantaneous
 frequency shows expected low-frequency shadow beneath gas; attributes
