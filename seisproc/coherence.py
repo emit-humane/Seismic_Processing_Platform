@@ -25,7 +25,9 @@ def coherence(data: np.ndarray, dt: float, window: float = 0.02, cell: int = 3) 
     window: vertical analysis window in seconds.
     cell: spatial box size in traces (3 -> 3x3 neighbours in 3D).
     """
-    data = np.asarray(data, dtype=float)
+    data = np.asarray(data)
+    if not np.issubdtype(data.dtype, np.floating):
+        data = data.astype(np.float32)
     if data.ndim == 3:
         size = (cell, cell, 1)
     elif data.ndim == 2:

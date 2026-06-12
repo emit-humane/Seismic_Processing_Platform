@@ -22,7 +22,7 @@ from seisproc.segy import SegyData, read_segy
 from seisproc.synthetic import cmp_gather, synthetic_volume
 from seisproc.velocity import pick_velocities, semblance
 from seisproc.viz import density, semblance_panel, wiggle
-from seisproc.volume import Volume, from_npy, read_segy_volume
+from seisproc.volume import Volume, from_npy, read_segy_volume, write_segy_volume
 
 st.set_page_config(page_title="Seismic Workbench", layout="wide")
 st.title("Seismic Workbench")
@@ -284,6 +284,24 @@ def poststack_mode():
     ax.set_ylabel(labels[1])
     fig.colorbar(im, ax=ax, label=label)
     st.pyplot(fig, clear_figure=True)
+
+    with st.expander("Export attribute volume as SEG-Y"):
+        if st.button(f"Prepare SEG-Y of '{attr_name}'"):
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".sgy") as tmp:
+                pass
+            with st.spinner("Writing SEG-Y ..."):
+                out = Volume(data=attr.astype(np.float32), ilines=vol.ilines,
+                             xlines=vol.xlines, dt=vol.dt)
+                write_segy_volume(tmp.name, out)
+            with open(tmp.name, "rb") as fh:
+                st.session_state.export = (attr_name, fh.read())
+        if "export" in st.session_state:
+            name, payload = st.session_state.export
+            st.download_button(
+                f"Download {name}.sgy ({len(payload) / 1e6:.0f} MB)",
+                payload,
+                file_name=f"{name.replace(' ', '_').lower()}.sgy",
+            )
 
 
 if mode == "Pre-stack (gathers)":

@@ -1,9 +1,15 @@
 # Seismic Workbench
 
 A lightweight seismic processing & interpretation package in Python:
-SEG-Y I/O, gather visualization, signal processing, semblance velocity
-analysis, NMO correction, and CMP stacking — validated against a built-in
-synthetic forward model with known ground truth.
+SEG-Y I/O, gather and volume visualization, signal processing, semblance
+velocity analysis, NMO correction, CMP stacking, complex-trace
+attributes, and coherence-based fault highlighting — validated against
+built-in synthetic forward models with known ground truth, and
+demonstrated on the real F3 Netherlands volume.
+
+![F3 coherence](docs/img/f3_coherence_t750ms.png)
+*F3 Netherlands, 0.75 s time slice: amplitude (left), semblance
+coherence (centre), fault overlay (right). Full cube computed in ~3 s.*
 
 ## Quick start
 
@@ -12,9 +18,21 @@ pip install -r requirements.txt
 streamlit run app/streamlit_app.py
 ```
 
-Generate a synthetic CMP gather in the sidebar (or upload a pre-stack
-SEG-Y), then walk the pipeline: view → filter/AGC → semblance →
-pick velocities → NMO → stack.
+**Pre-stack mode:** generate a synthetic CMP gather (or upload a
+pre-stack SEG-Y), then walk the pipeline: view → filter/AGC →
+semblance → pick velocities → NMO → stack.
+
+**Post-stack mode:** load a synthetic 3D volume, a 3D SEG-Y, or the F3
+benchmark; navigate inline/crossline/time slices; compute Hilbert
+attributes (envelope, instantaneous phase/frequency, RMS) and semblance
+coherence with a fault-overlay co-render; export any attribute volume
+back to SEG-Y.
+
+To get the real F3 data (~1.2 GB, [Zenodo 3755060](https://zenodo.org/record/3755060)):
+
+```
+python scripts/download_f3.py data/f3
+```
 
 ## Library
 
@@ -31,21 +49,35 @@ v_t = velocity_function(t, times, picks)
 section = stack(nmo_correct(data, offsets, 0.002, v_t))
 ```
 
-Convention: arrays are `(n_traces, n_samples)`, time axis last; seconds,
-metres, m/s throughout.
+```python
+from seisproc.volume import from_npy
+from seisproc.coherence import coherence
+
+vol = from_npy("data/f3/data/train/train_seismic.npy", dt=0.004)
+coh = coherence(vol.data, vol.dt)   # faults = low-coherence lineaments
+```
+
+Convention: arrays are `(n_traces, n_samples)` or
+`(n_ilines, n_xlines, n_samples)`, time axis last; seconds, metres, m/s.
 
 ## Validation
 
-`pytest tests/` — the suite proves the physics, not just the plumbing:
-semblance peaks recover true RMS velocities within 5%, NMO flattens
-synthetic hyperbolic events, and stacking improves SNR over a single
-trace as theory predicts.
+`pytest tests/` — 38 tests that prove the physics, not just the plumbing:
+
+- semblance peaks recover true RMS velocities within 5%
+- NMO flattens synthetic hyperbolic events to ±2 samples
+- stacking improves SNR over a single trace as theory predicts
+- envelope recovers AM modulation; instantaneous frequency reads a pure
+  tone correctly; RMS of a steady sine equals A/√2
+- coherence locates a synthetic fault within ±1 crossline with a
+  lineament continuous along every inline
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md). M1 (this) — pre-stack pipeline.
-M2 — post-stack attributes on F3 Netherlands. M3 — one interpretation
-feature (coherence faults or assisted horizon tracking).
+See [ROADMAP.md](ROADMAP.md). All three milestones complete:
+M1 pre-stack pipeline, M2 post-stack attributes, M3A coherence fault
+highlighting (validated on F3).
 
-Future work (out of scope by design): inversion, ML fault/salt detection,
-3D rendering, full interpretation workspace.
+Future work (out of scope by design): assisted horizon tracking,
+inversion, ML fault/salt detection, 3D rendering, full interpretation
+workspace.
