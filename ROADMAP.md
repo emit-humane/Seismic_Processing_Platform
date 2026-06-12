@@ -1,0 +1,103 @@
+# Seismic Workbench — Revised Roadmap
+
+A lightweight seismic processing & interpretation package in Python.
+Goal: demonstrate real exploration-geophysics competence — **depth on the
+stack-building pipeline first**, interpretation breadth later.
+
+## Design decisions (locked)
+
+| Decision | Choice | Why |
+|---|---|---|
+| SEG-Y I/O | `segyio` only | ObsPy is earthquake seismology — wrong tool, heavy dependency |
+| Front-end | Streamlit | Fastest path for upload/view/process/QC. Picking UI deferred to M3 decision |
+| Pre-stack data | **Synthetic CMP gathers (built-in) + one public 2D marine line** | F3/Penobscot are post-stack — no offsets, so no velocity analysis/NMO possible on them |
+| Post-stack data | F3 Netherlands subset | Correct dataset for attributes (M2) |
+| Validation | Synthetic forward model with known velocities | Proves NMO/semblance are *correct*, not just running |
+| 3D (PyVista) | Deferred indefinitely | Orthogonal to demonstrating geophysics skill |
+| ML (U-Net etc.) | Cut from scope | Each is its own multi-month project |
+
+---
+
+## Milestone 1 — Pre-stack pipeline (the spine) ~3–4 weeks
+
+> Synthetic gather → semblance → NMO → stack, validated against ground truth.
+> This is the part that proves you're a geophysicist.
+
+**Week 1 — Foundations + synthetic forward model**
+- [x] Project scaffold, package layout, CI-ready tests
+- [x] Ricker wavelet, reflectivity series, convolutional model
+- [x] Synthetic CMP gather generator: hyperbolic moveout `t(x) = sqrt(t0² + x²/v²)`,
+      configurable layers (t0, v_rms, amplitude), offsets, noise
+- [x] SEG-Y reader (`segyio`): traces, binary/trace headers, metadata summary
+- [x] SEG-Y writer for synthetic gathers (round-trip test)
+
+**Week 2 — Viewer + signal processing**
+- [x] Wiggle plot (variable-area fill) and variable-density (image) display
+- [x] Bandpass filter (zero-phase Butterworth, `sosfiltfilt`)
+- [x] Trace normalization (RMS / max)
+- [x] AGC (sliding-window RMS gain)
+- [ ] Spiking deconvolution — **own mini-phase, optional**: Wiener filter,
+      autocorrelation design window, prewhitening. Cut if schedule slips.
+
+**Week 3 — Velocity analysis + NMO + stack**
+- [x] Semblance spectrum over (t0, v) grid
+- [x] Velocity picking: programmatic peak extraction + manual picks via UI
+- [x] NMO correction with stretch mute (configurable stretch limit)
+- [x] CMP stack
+- [x] **Validation tests**: semblance peaks within tolerance of true v_rms;
+      NMO flattens synthetic events; stack SNR > single-trace SNR
+
+**Week 4 — Streamlit app (M1 surface)**
+- [x] Upload SEG-Y / generate synthetic
+- [x] Metadata panel (n_traces, dt, n_samples, header dump)
+- [x] Gather viewer (wiggle / density, gain controls)
+- [x] Processing chain UI (bandpass, AGC, normalize — ordered, toggleable)
+- [x] Semblance panel with click-to-pick velocity function
+- [x] NMO preview + stack result side by side
+
+**Exit criteria:** given a synthetic 5-layer model, the app's picked velocity
+function recovers true v_rms within 5%, and the stacked trace shows the 5
+events at correct t0 with improved SNR. One real public 2D line loads and
+stacks without errors.
+
+---
+
+## Milestone 2 — Post-stack attributes (F3 subset) ~2 weeks
+
+- [ ] Load F3 Netherlands subset (post-stack 3D, inline/crossline geometry)
+- [ ] Inline/crossline/time-slice navigation in viewer
+- [ ] Complex-trace attributes (Hilbert transform): envelope (reflection
+      strength), instantaneous phase, instantaneous frequency
+- [ ] Windowed RMS amplitude
+- [ ] Attribute co-rendering (attribute overlay on amplitude)
+- [ ] Export attribute volumes back to SEG-Y
+
+**Exit criteria:** F3 bright spots visible in envelope; instantaneous
+frequency shows expected low-frequency shadow beneath gas; attributes
+exportable and reloadable.
+
+---
+
+## Milestone 3 — ONE interpretation feature, done well ~2–3 weeks
+
+Pick exactly one (decide after M2, based on remaining time):
+
+- **Option A — Coherence fault highlighting**: cross-correlation /
+  semblance-based coherence cube on F3; faults appear as low-coherence
+  lineaments. No picking UI needed — pure computation + display. *Lower risk.*
+- **Option B — Assisted horizon tracking**: seed-point + cross-correlation
+  auto-tracker on inlines. Needs click interaction — prototype in Streamlit
+  with `streamlit-plotly-events`; if it fights back, ship the tracker as a
+  notebook + library API instead of a UI. *Higher risk, higher payoff.*
+
+**Exit criteria:** the chosen feature produces a defensible result on F3
+that matches published interpretations of the dataset.
+
+---
+
+## Explicitly cut (resist re-adding)
+
+Seismic inversion · ML fault/salt detection · reservoir property prediction ·
+3D PyVista rendering · full interpretation workspace (projects, annotations) ·
+Flask/React rewrite. Each is a separate project; list them as "future work"
+in the README, nothing more.
